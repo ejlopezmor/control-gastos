@@ -1,0 +1,7 @@
+.claude/
+.streamlit/secrets.toml
+gastos_data.json
+__pycache__/
+*.pyc
+*.pyo
+.env
