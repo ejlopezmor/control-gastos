@@ -1018,7 +1018,7 @@ with tab6:
         st.subheader("Nuevo Gasto")
         with st.form("form_gasto"):
             fecha_g  = st.date_input("Fecha", value=date.today(), key="fg_fecha")
-            monto_g  = st.number_input("Monto (K COP)", min_value=0.0, step=10.0, key="fg_monto")
+            monto_g  = st.number_input("Monto (K COP)", value=0.0, step=10.0, key="fg_monto")
             desc_g   = st.text_input("Descripción", key="fg_desc")
             medio_g  = st.selectbox("Medio de pago",
                                     ["TD Nu Bank","Efectivo","TC Nu Bank","Otro"], key="fg_medio")
@@ -1046,7 +1046,7 @@ with tab6:
         st.subheader("Nuevo Ingreso")
         with st.form("form_ingreso"):
             fecha_i  = st.date_input("Fecha", value=date.today(), key="fi_fecha")
-            monto_i  = st.number_input("Monto (K COP)", min_value=0.0, step=100.0, key="fi_monto")
+            monto_i  = st.number_input("Monto (K COP)", value=0.0, step=100.0, key="fi_monto")
             desc_i   = st.text_input("Descripción", key="fi_desc")
             cat_i    = st.selectbox("Categoría", sorted(data["ingresos_presupuesto"].keys()), key="fi_cat")
             submit_i = st.form_submit_button("💾 Guardar Ingreso", type="primary")
