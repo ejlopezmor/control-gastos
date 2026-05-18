@@ -609,7 +609,7 @@ with tab1:
                 <div style="color:#888;font-size:0.8em;">Planeado</div>
                 <div style="font-size:1.1em;font-weight:600;color:#6c757d;">{fmt_val(balance_plan)}</div>
                 <hr style="border:none;border-top:1px dashed #dee2e6;margin:12px 0;">
-                <div style="color:#888;font-size:0.8em;">Ahorro ejecutado</div>
+                <div style="color:#888;font-size:0.8em;">Cajita (Ahorro)</div>
                 <div style="font-size:1.1em;font-weight:600;color:#3498db;">{fmt_val(ahorro_real)}</div>
             </div>
             """,
@@ -631,9 +631,6 @@ with tab1:
         l, b = st.columns([1, 4])
         l.markdown("<span style='color:#888;font-size:.85em;'>Real</span>", unsafe_allow_html=True)
         b.progress(min(ing_real / max_i, 1.0), text=fmt_val(ing_real))
-        l, b = st.columns([1, 4])
-        l.markdown("<span style='color:#888;font-size:.85em;'>Cajita</span>", unsafe_allow_html=True)
-        b.markdown(f"**{fmt_val(ahorro_real)}**")
 
     with col_gas:
         st.markdown("**Gastos**")
@@ -882,58 +879,97 @@ with tab5:
     if df5.empty:
         st.info("No hay transacciones para este mes.")
     else:
-        df_dia5 = df5.groupby("fecha")["monto"].sum().reset_index().sort_values("fecha")
-        df_dia5["acumulado"] = df_dia5["monto"].cumsum()
-        total_plan5 = get_resumen()["Planeado"].sum()
+        # Separar gastos reales de ahorro
+        ahorro_cats5 = {cat for cat, vals in _presupuesto_activo().items() if vals[0] == "Ahorro"}
+        df5_gasto  = df5[~df5["categoria"].isin(ahorro_cats5)]
+        df5_ahorro = df5[df5["categoria"].isin(ahorro_cats5)]
+
+        def _agg_dia(df_sub):
+            if df_sub.empty:
+                return pd.DataFrame(columns=["fecha", "monto", "acumulado"])
+            d = df_sub.groupby("fecha")["monto"].sum().reset_index().sort_values("fecha")
+            d["acumulado"] = d["monto"].cumsum()
+            return d
+
+        df_dia_g = _agg_dia(df5_gasto)
+        df_dia_a = _agg_dia(df5_ahorro)
+
+        res5 = get_resumen()
+        total_plan5_g = res5[res5["Tipo"] != "Ahorro"]["Planeado"].sum()
+        total_plan5_a = res5[res5["Tipo"] == "Ahorro"]["Planeado"].sum()
 
         col5a, col5b = st.columns(2)
 
         with col5a:
-            st.subheader("Gasto por día")
+            st.subheader("Movimientos por día")
             fig5a = go.Figure()
-            fig5a.add_trace(go.Scatter(
-                x=df_dia5["fecha"], y=df_dia5["monto"],
-                mode="lines+markers",
-                line=dict(color="#3498db", width=2),
-                marker=dict(size=7, color="#3498db"),
-                fill="tozeroy",
-                fillcolor="rgba(52,152,219,0.1)",
-                name="Gasto diario",
-            ))
+            if not df_dia_g.empty:
+                fig5a.add_trace(go.Scatter(
+                    x=df_dia_g["fecha"], y=df_dia_g["monto"],
+                    mode="lines+markers", name="Gasto",
+                    line=dict(color="#e74c3c", width=2),
+                    marker=dict(size=7),
+                    fill="tozeroy", fillcolor="rgba(231,76,60,0.08)",
+                ))
+            if not df_dia_a.empty:
+                fig5a.add_trace(go.Scatter(
+                    x=df_dia_a["fecha"], y=df_dia_a["monto"],
+                    mode="lines+markers", name="Ahorro",
+                    line=dict(color="#3498db", width=2),
+                    marker=dict(size=7),
+                    fill="tozeroy", fillcolor="rgba(52,152,219,0.08)",
+                ))
             fig5a.update_layout(
                 height=300, plot_bgcolor="white",
                 yaxis_title="Miles COP", xaxis_title="",
-                margin=dict(t=20, b=20),
+                margin=dict(t=30, b=20),
                 yaxis=dict(showgrid=True, gridcolor="#f0f0f0"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02),
             )
             st.plotly_chart(fig5a, use_container_width=True)
 
         with col5b:
-            st.subheader("Gasto acumulado")
-            hoy5  = date.today()
+            st.subheader("Acumulado: Gasto vs Ahorro")
+            hoy5     = date.today()
             quincena = date(hoy5.year, hoy5.month, 15)
 
             fig5b = go.Figure()
-            fig5b.add_trace(go.Scatter(
-                x=df_dia5["fecha"], y=df_dia5["acumulado"],
-                mode="lines+markers", name="Acumulado real",
-                line=dict(color="#e74c3c", width=2),
-                marker=dict(size=6),
-                fill="tozeroy",
-                fillcolor="rgba(231,76,60,0.08)",
-            ))
-            fig5b.add_hline(
-                y=total_plan5, line_dash="dash", line_color="#e74c3c", line_width=1.5,
-                annotation_text=f"Presupuesto: {fmt_val(total_plan5)}",
-                annotation_position="top right",
-                annotation_font=dict(color="#e74c3c", size=11),
-            )
-            fig5b.add_hline(
-                y=total_plan5 * 0.5, line_dash="dot", line_color="#f39c12", line_width=1,
-                annotation_text="Meta quincena",
-                annotation_position="top right",
-                annotation_font=dict(color="#f39c12", size=10),
-            )
+            if not df_dia_g.empty:
+                fig5b.add_trace(go.Scatter(
+                    x=df_dia_g["fecha"], y=df_dia_g["acumulado"],
+                    mode="lines+markers", name="Gasto acumulado",
+                    line=dict(color="#e74c3c", width=2),
+                    marker=dict(size=6),
+                    fill="tozeroy", fillcolor="rgba(231,76,60,0.06)",
+                ))
+            if not df_dia_a.empty:
+                fig5b.add_trace(go.Scatter(
+                    x=df_dia_a["fecha"], y=df_dia_a["acumulado"],
+                    mode="lines+markers", name="Ahorro acumulado",
+                    line=dict(color="#3498db", width=2),
+                    marker=dict(size=6),
+                    fill="tozeroy", fillcolor="rgba(52,152,219,0.06)",
+                ))
+            if total_plan5_g > 0:
+                fig5b.add_hline(
+                    y=total_plan5_g, line_dash="dash", line_color="#e74c3c", line_width=1.5,
+                    annotation_text=f"Techo gasto: {fmt_val(total_plan5_g)}",
+                    annotation_position="top right",
+                    annotation_font=dict(color="#e74c3c", size=11),
+                )
+                fig5b.add_hline(
+                    y=total_plan5_g * 0.5, line_dash="dot", line_color="#f39c12", line_width=1,
+                    annotation_text="Meta quincena",
+                    annotation_position="top right",
+                    annotation_font=dict(color="#f39c12", size=10),
+                )
+            if total_plan5_a > 0:
+                fig5b.add_hline(
+                    y=total_plan5_a, line_dash="dash", line_color="#3498db", line_width=1.5,
+                    annotation_text=f"Meta ahorro: {fmt_val(total_plan5_a)}",
+                    annotation_position="bottom right",
+                    annotation_font=dict(color="#3498db", size=11),
+                )
             fig5b.add_shape(
                 type="line",
                 x0=str(quincena), x1=str(quincena),
@@ -1032,7 +1068,7 @@ with tab6:
             df_ed6, use_container_width=True, num_rows="dynamic",
             column_config={
                 "fecha":     st.column_config.TextColumn("Fecha (YYYY-MM-DD)"),
-                "monto":     st.column_config.NumberColumn("Monto (K COP)", format="$%.0fK"),
+                "monto":     st.column_config.NumberColumn("Monto (K COP)", format="$%.0fK", min_value=0),
                 "categoria": st.column_config.SelectboxColumn(
                     "Categoría", options=sorted(_presupuesto_activo().keys())),
             }, hide_index=True)
