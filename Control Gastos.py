@@ -934,10 +934,17 @@ with tab5:
                 annotation_position="top right",
                 annotation_font=dict(color="#f39c12", size=10),
             )
-            fig5b.add_vline(
-                x=str(quincena), line_dash="dot", line_color="#adb5bd", line_width=1,
-                annotation_text="Día 15", annotation_position="top left",
-                annotation_font=dict(color="#adb5bd", size=10),
+            fig5b.add_shape(
+                type="line",
+                x0=str(quincena), x1=str(quincena),
+                y0=0, y1=1, yref="paper",
+                line=dict(dash="dot", color="#adb5bd", width=1),
+            )
+            fig5b.add_annotation(
+                x=str(quincena), y=1, yref="paper",
+                text="Día 15", showarrow=False,
+                font=dict(color="#adb5bd", size=10),
+                xanchor="left", yanchor="top",
             )
             fig5b.update_layout(
                 height=300, plot_bgcolor="white",
