@@ -1143,25 +1143,65 @@ with tab6:
                     st.rerun()
 
     st.divider()
-    st.subheader("Transacciones del mes (editables)")
-    df_ed6 = get_df_trans()
-    if not df_ed6.empty:
-        df_ed6["fecha"] = df_ed6["fecha"].dt.strftime("%Y-%m-%d")
-        df_edit6 = st.data_editor(
-            df_ed6, use_container_width=True, num_rows="dynamic",
-            column_config={
-                "fecha":     st.column_config.TextColumn("Fecha (YYYY-MM-DD)"),
-                "monto":     st.column_config.NumberColumn("Monto (K COP)", format="$%.0fK", min_value=0),
-                "categoria": st.column_config.SelectboxColumn(
-                    "Categoría", options=sorted(_presupuesto_activo().keys())),
-            }, hide_index=True)
-        if st.button("💾 Guardar cambios en tabla"):
-            data["transacciones"] = df_edit6.to_dict("records")
-            if usar_sheets:
-                with st.spinner("Guardando en Google Sheets..."):
-                    guardar_transacciones(client, data["transacciones"])
-            st.success("Cambios guardados.")
-            st.rerun()
+
+    col_ed6a, col_ed6b = st.columns(2)
+
+    # ── Tabla editable de GASTOS ──
+    with col_ed6a:
+        st.subheader("Gastos del mes (editables)")
+        df_ed6 = get_df_trans()
+        if not df_ed6.empty:
+            df_ed6["fecha"] = df_ed6["fecha"].dt.strftime("%Y-%m-%d")
+            df_edit6 = st.data_editor(
+                df_ed6, use_container_width=True, num_rows="dynamic",
+                column_config={
+                    "fecha":     st.column_config.TextColumn("Fecha (YYYY-MM-DD)"),
+                    "monto":     st.column_config.NumberColumn("Monto (K COP)", format="$%.0fK"),
+                    "categoria": st.column_config.SelectboxColumn(
+                        "Categoría", options=sorted(_presupuesto_activo().keys())),
+                }, hide_index=True)
+            if st.button("💾 Guardar cambios en gastos", key="btn_save_gastos_edit"):
+                data["transacciones"] = df_edit6.to_dict("records")
+                if usar_sheets:
+                    with st.spinner("Guardando en Google Sheets..."):
+                        guardar_transacciones(client, data["transacciones"])
+                st.success("Cambios en gastos guardados.")
+                st.rerun()
+        else:
+            st.info("No hay gastos registrados para este mes.")
+
+    # ── Tabla editable de INGRESOS ──
+    with col_ed6b:
+        st.subheader("Ingresos del mes (editables)")
+        df_ed6i = get_df_ing()
+        if not df_ed6i.empty:
+            df_ed6i = df_ed6i.copy()
+            df_ed6i["fecha"] = df_ed6i["fecha"].dt.strftime("%Y-%m-%d")
+            df_edit6i = st.data_editor(
+                df_ed6i, use_container_width=True, num_rows="dynamic",
+                column_config={
+                    "fecha":     st.column_config.TextColumn("Fecha (YYYY-MM-DD)"),
+                    "monto":     st.column_config.NumberColumn("Monto (K COP)", format="$%.0fK"),
+                    "descripcion": st.column_config.TextColumn("Descripción"),
+                    "categoria": st.column_config.SelectboxColumn(
+                        "Categoría", options=sorted(data["ingresos_presupuesto"].keys())),
+                }, hide_index=True)
+            if st.button("💾 Guardar cambios en ingresos", key="btn_save_ingresos_edit"):
+                # Reemplazar solo los ingresos del mes activo; conservar otros meses
+                mes_ed = _mes_activo()
+                otros_meses_i = [
+                    t for t in data["ingresos"]
+                    if str(t.get("fecha", ""))[:7] != mes_ed
+                ]
+                editados_i = df_edit6i.to_dict("records")
+                data["ingresos"] = otros_meses_i + editados_i
+                if usar_sheets:
+                    with st.spinner("Guardando en Google Sheets..."):
+                        guardar_ingresos(client, data["ingresos"])
+                st.success("Cambios en ingresos guardados.")
+                st.rerun()
+        else:
+            st.info("No hay ingresos registrados para este mes.")
 
 
 # ══════════════════════════════════════════════
