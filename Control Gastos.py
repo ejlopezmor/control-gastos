@@ -1026,10 +1026,8 @@ with tab6:
             cat_g    = st.selectbox("Categoría", cats_g, key="fg_cat")
             submit_g = st.form_submit_button("💾 Guardar Gasto", type="primary")
         if submit_g:
-            if monto_g is None or monto_g < 0:
-                st.error("⚠️ El monto no puede ser negativo.")
-            elif monto_g == 0:
-                st.error("⚠️ El monto debe ser mayor a 0.")
+            if monto_g == 0:
+                st.error("⚠️ El monto no puede ser 0.")
             elif not desc_g.strip():
                 st.error("⚠️ Escribe una descripción.")
             else:
@@ -1051,10 +1049,8 @@ with tab6:
             cat_i    = st.selectbox("Categoría", sorted(data["ingresos_presupuesto"].keys()), key="fi_cat")
             submit_i = st.form_submit_button("💾 Guardar Ingreso", type="primary")
         if submit_i:
-            if monto_i is None or monto_i < 0:
-                st.error("⚠️ El monto no puede ser negativo.")
-            elif monto_i == 0:
-                st.error("⚠️ El monto debe ser mayor a 0.")
+            if monto_i == 0:
+                st.error("⚠️ El monto no puede ser 0.")
             elif not desc_i.strip():
                 st.error("⚠️ Escribe una descripción.")
             else:
