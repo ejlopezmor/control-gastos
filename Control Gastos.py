@@ -268,6 +268,13 @@ if "data" not in st.session_state:
 
 data = st.session_state.data
 
+# Limpieza automática: eliminar transacciones con monto 0
+_trans_sin_cero = [t for t in data["transacciones"] if float(t.get("monto", 0)) != 0]
+if len(_trans_sin_cero) < len(data["transacciones"]):
+    data["transacciones"] = _trans_sin_cero
+    if usar_sheets:
+        guardar_transacciones(client, data["transacciones"])
+
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
@@ -1012,10 +1019,40 @@ with tab5:
 # ══════════════════════════════════════════════
 with tab6:
     st.header("➕ Ingresar Nueva Transacción")
+
+    # ── Umbral para pedir confirmación ──
+    UMBRAL_CONFIRMACION = 3000  # K COP
+
+    def _es_inusual(monto):
+        return monto < 0 or abs(monto) > UMBRAL_CONFIRMACION
+
     col_g6, col_i6 = st.columns(2)
 
+    # ────────── NUEVO GASTO ──────────
     with col_g6:
         st.subheader("Nuevo Gasto")
+
+        # Confirmación pendiente
+        if "pending_gasto" in st.session_state:
+            p = st.session_state["pending_gasto"]
+            st.warning(
+                f"⚠️ Vas a guardar **{fmt_val(p['monto'])}** en **{p['categoria']}**"
+                f" — *{p['descripcion']}*\n\n¿El monto es correcto?"
+            )
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Sí, guardar", key="confirm_gasto", type="primary"):
+                data["transacciones"].append(p)
+                if usar_sheets:
+                    with st.spinner("Guardando..."):
+                        agregar_transaccion(client, p)
+                del st.session_state["pending_gasto"]
+                st.success(f"✅ Guardado: {fmt_val(p['monto'])} en {p['categoria']}")
+                st.rerun()
+            if c2.button("❌ Cancelar", key="cancel_gasto"):
+                del st.session_state["pending_gasto"]
+                st.rerun()
+            st.divider()
+
         with st.form("form_gasto"):
             fecha_g  = st.date_input("Fecha", value=date.today(), key="fg_fecha")
             monto_g  = st.number_input("Monto (K COP)", value=0.0, step=10.0, key="fg_monto")
@@ -1024,7 +1061,11 @@ with tab6:
                                     ["TD Nu Bank","Efectivo","TC Nu Bank","Otro"], key="fg_medio")
             cats_g   = sorted(_presupuesto_activo().keys())
             cat_g    = st.selectbox("Categoría", cats_g, key="fg_cat")
-            submit_g = st.form_submit_button("💾 Guardar Gasto", type="primary")
+            submit_g = st.form_submit_button(
+                "💾 Guardar Gasto", type="primary",
+                disabled="pending_gasto" in st.session_state,
+            )
+
         if submit_g:
             if monto_g == 0:
                 st.error("⚠️ El monto no puede ser 0.")
@@ -1033,21 +1074,52 @@ with tab6:
             else:
                 nueva = {"fecha": str(fecha_g), "monto": monto_g, "descripcion": desc_g,
                          "medio": medio_g, "categoria": cat_g}
-                data["transacciones"].append(nueva)
-                if usar_sheets:
-                    with st.spinner("Guardando..."):
-                        agregar_transaccion(client, nueva)
-                st.success(f"✅ {fmt_cop(monto_g)} en {cat_g}")
-                st.rerun()
+                if _es_inusual(monto_g):
+                    st.session_state["pending_gasto"] = nueva
+                    st.rerun()
+                else:
+                    data["transacciones"].append(nueva)
+                    if usar_sheets:
+                        with st.spinner("Guardando..."):
+                            agregar_transaccion(client, nueva)
+                    st.success(f"✅ {fmt_val(monto_g)} en {cat_g}")
+                    st.rerun()
 
+    # ────────── NUEVO INGRESO ──────────
     with col_i6:
         st.subheader("Nuevo Ingreso")
+
+        # Confirmación pendiente
+        if "pending_ingreso" in st.session_state:
+            p = st.session_state["pending_ingreso"]
+            st.warning(
+                f"⚠️ Vas a guardar **{fmt_val(p['monto'])}** en **{p['categoria']}**"
+                f" — *{p['descripcion']}*\n\n¿El monto es correcto?"
+            )
+            c1, c2 = st.columns(2)
+            if c1.button("✅ Sí, guardar", key="confirm_ingreso", type="primary"):
+                data["ingresos"].append(p)
+                if usar_sheets:
+                    with st.spinner("Guardando..."):
+                        agregar_ingreso(client, p)
+                del st.session_state["pending_ingreso"]
+                st.success(f"✅ Guardado: {fmt_val(p['monto'])} en {p['categoria']}")
+                st.rerun()
+            if c2.button("❌ Cancelar", key="cancel_ingreso"):
+                del st.session_state["pending_ingreso"]
+                st.rerun()
+            st.divider()
+
         with st.form("form_ingreso"):
             fecha_i  = st.date_input("Fecha", value=date.today(), key="fi_fecha")
             monto_i  = st.number_input("Monto (K COP)", value=0.0, step=100.0, key="fi_monto")
             desc_i   = st.text_input("Descripción", key="fi_desc")
             cat_i    = st.selectbox("Categoría", sorted(data["ingresos_presupuesto"].keys()), key="fi_cat")
-            submit_i = st.form_submit_button("💾 Guardar Ingreso", type="primary")
+            submit_i = st.form_submit_button(
+                "💾 Guardar Ingreso", type="primary",
+                disabled="pending_ingreso" in st.session_state,
+            )
+
         if submit_i:
             if monto_i == 0:
                 st.error("⚠️ El monto no puede ser 0.")
@@ -1056,12 +1128,16 @@ with tab6:
             else:
                 nuevo_ing = {"fecha": str(fecha_i), "monto": monto_i,
                              "descripcion": desc_i, "categoria": cat_i}
-                data["ingresos"].append(nuevo_ing)
-                if usar_sheets:
-                    with st.spinner("Guardando..."):
-                        agregar_ingreso(client, nuevo_ing)
-                st.success(f"✅ {fmt_cop(monto_i)} en {cat_i}")
-                st.rerun()
+                if _es_inusual(monto_i):
+                    st.session_state["pending_ingreso"] = nuevo_ing
+                    st.rerun()
+                else:
+                    data["ingresos"].append(nuevo_ing)
+                    if usar_sheets:
+                        with st.spinner("Guardando..."):
+                            agregar_ingreso(client, nuevo_ing)
+                    st.success(f"✅ {fmt_val(monto_i)} en {cat_i}")
+                    st.rerun()
 
     st.divider()
     st.subheader("Transacciones del mes (editables)")
