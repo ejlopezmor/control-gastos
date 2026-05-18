@@ -1026,7 +1026,13 @@ with tab6:
             cat_g    = st.selectbox("Categoría", cats_g, key="fg_cat")
             submit_g = st.form_submit_button("💾 Guardar Gasto", type="primary")
         if submit_g:
-            if monto_g > 0 and desc_g:
+            if monto_g is None or monto_g < 0:
+                st.error("⚠️ El monto no puede ser negativo.")
+            elif monto_g == 0:
+                st.error("⚠️ El monto debe ser mayor a 0.")
+            elif not desc_g.strip():
+                st.error("⚠️ Escribe una descripción.")
+            else:
                 nueva = {"fecha": str(fecha_g), "monto": monto_g, "descripcion": desc_g,
                          "medio": medio_g, "categoria": cat_g}
                 data["transacciones"].append(nueva)
@@ -1035,8 +1041,6 @@ with tab6:
                         agregar_transaccion(client, nueva)
                 st.success(f"✅ {fmt_cop(monto_g)} en {cat_g}")
                 st.rerun()
-            else:
-                st.error("Completa monto y descripción.")
 
     with col_i6:
         st.subheader("Nuevo Ingreso")
@@ -1047,7 +1051,13 @@ with tab6:
             cat_i    = st.selectbox("Categoría", sorted(data["ingresos_presupuesto"].keys()), key="fi_cat")
             submit_i = st.form_submit_button("💾 Guardar Ingreso", type="primary")
         if submit_i:
-            if monto_i > 0 and desc_i:
+            if monto_i is None or monto_i < 0:
+                st.error("⚠️ El monto no puede ser negativo.")
+            elif monto_i == 0:
+                st.error("⚠️ El monto debe ser mayor a 0.")
+            elif not desc_i.strip():
+                st.error("⚠️ Escribe una descripción.")
+            else:
                 nuevo_ing = {"fecha": str(fecha_i), "monto": monto_i,
                              "descripcion": desc_i, "categoria": cat_i}
                 data["ingresos"].append(nuevo_ing)
@@ -1056,8 +1066,6 @@ with tab6:
                         agregar_ingreso(client, nuevo_ing)
                 st.success(f"✅ {fmt_cop(monto_i)} en {cat_i}")
                 st.rerun()
-            else:
-                st.error("Completa monto y descripción.")
 
     st.divider()
     st.subheader("Transacciones del mes (editables)")
