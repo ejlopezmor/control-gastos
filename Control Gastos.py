@@ -12,6 +12,7 @@ from datetime import datetime, date
 import json
 import os
 import calendar
+import math
 
 st.set_page_config(
     page_title="Control de Gastos - Javier",
@@ -186,10 +187,24 @@ def leer_presupuestos_mensuales(client):
 # ─────────────────────────────────────────────
 # ESCRITURA EN SHEETS  (todas usan append_rows por lote)
 # ─────────────────────────────────────────────
+def _sanitize_val(v):
+    """Convierte NaN / Inf / None a string vacío para evitar InvalidJSONError."""
+    if v is None:
+        return ""
+    try:
+        f = float(v)
+        if math.isnan(f) or math.isinf(f):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return v
+
 def _escribir_hoja(ws, headers, filas):
-    """Limpia y reescribe la hoja en 2 llamadas a la API."""
+    """Limpia y reescribe la hoja en 2 llamadas a la API.
+    Sanea NaN/Inf antes de enviar para evitar InvalidJSONError."""
     ws.clear()
-    todas = [headers] + filas
+    filas_limpias = [[_sanitize_val(c) for c in fila] for fila in filas]
+    todas = [headers] + filas_limpias
     if todas:
         ws.append_rows(todas)
 
@@ -1161,7 +1176,17 @@ with tab6:
                         "Categoría", options=sorted(_presupuesto_activo().keys())),
                 }, hide_index=True)
             if st.button("💾 Guardar cambios en gastos", key="btn_save_gastos_edit"):
-                data["transacciones"] = df_edit6.to_dict("records")
+                # Limpiar NaN y filas vacías antes de guardar
+                df_limpia_g = df_edit6.copy()
+                df_limpia_g["monto"] = pd.to_numeric(df_limpia_g["monto"], errors="coerce").fillna(0)
+                df_limpia_g = df_limpia_g.fillna("")
+                data["transacciones"] = [
+                    {"fecha": str(r["fecha"]), "monto": float(r["monto"]),
+                     "descripcion": str(r["descripcion"]), "medio": str(r["medio"]),
+                     "categoria": str(r["categoria"])}
+                    for r in df_limpia_g.to_dict("records")
+                    if str(r.get("fecha", "")).strip() and float(r.get("monto", 0)) != 0
+                ]
                 if usar_sheets:
                     with st.spinner("Guardando en Google Sheets..."):
                         guardar_transacciones(client, data["transacciones"])
@@ -1193,7 +1218,16 @@ with tab6:
                     t for t in data["ingresos"]
                     if str(t.get("fecha", ""))[:7] != mes_ed
                 ]
-                editados_i = df_edit6i.to_dict("records")
+                # Limpiar NaN y filas completamente vacías antes de guardar
+                df_limpia_i = df_edit6i.copy()
+                df_limpia_i["monto"] = pd.to_numeric(df_limpia_i["monto"], errors="coerce").fillna(0)
+                df_limpia_i = df_limpia_i.fillna("")
+                editados_i = [
+                    {"fecha": str(r["fecha"]), "monto": float(r["monto"]),
+                     "descripcion": str(r["descripcion"]), "categoria": str(r["categoria"])}
+                    for r in df_limpia_i.to_dict("records")
+                    if str(r.get("fecha", "")).strip() and float(r.get("monto", 0)) != 0
+                ]
                 data["ingresos"] = otros_meses_i + editados_i
                 if usar_sheets:
                     with st.spinner("Guardando en Google Sheets..."):
