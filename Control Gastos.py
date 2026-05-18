@@ -119,8 +119,10 @@ def leer_transacciones(client):
         return TRANSACCIONES_INICIALES.copy()
     rows = ws.get_all_records()
     if not rows:
-        for t in TRANSACCIONES_INICIALES:
-            ws.append_row([t["fecha"], t["monto"], t["descripcion"], t["medio"], t["categoria"]])
+        batch = [[t["fecha"], t["monto"], t["descripcion"], t["medio"], t["categoria"]]
+                 for t in TRANSACCIONES_INICIALES]
+        if batch:
+            ws.append_rows(batch)
         return TRANSACCIONES_INICIALES.copy()
     return [{"fecha": str(r.get("fecha","")), "monto": float(r.get("monto",0)),
              "descripcion": str(r.get("descripcion","")), "medio": str(r.get("medio","")),
@@ -132,8 +134,10 @@ def leer_ingresos(client):
         return INGRESOS_INICIALES.copy()
     rows = ws.get_all_records()
     if not rows:
-        for t in INGRESOS_INICIALES:
-            ws.append_row([t["fecha"], t["monto"], t["descripcion"], t["categoria"]])
+        batch = [[t["fecha"], t["monto"], t["descripcion"], t["categoria"]]
+                 for t in INGRESOS_INICIALES]
+        if batch:
+            ws.append_rows(batch)
         return INGRESOS_INICIALES.copy()
     return [{"fecha": str(r.get("fecha","")), "monto": float(r.get("monto",0)),
              "descripcion": str(r.get("descripcion","")), "categoria": str(r.get("categoria",""))} for r in rows]
@@ -144,8 +148,9 @@ def leer_presupuesto(client):
         return {k: list(v) for k, v in PRESUPUESTO_INICIAL.items()}
     rows = ws.get_all_records()
     if not rows:
-        for cat, (tipo, plan) in PRESUPUESTO_INICIAL.items():
-            ws.append_row([cat, tipo, plan])
+        batch = [[cat, tipo, plan] for cat, (tipo, plan) in PRESUPUESTO_INICIAL.items()]
+        if batch:
+            ws.append_rows(batch)
         return {k: list(v) for k, v in PRESUPUESTO_INICIAL.items()}
     result = {str(r["categoria"]): [str(r["tipo"]), float(r["planeado"])] for r in rows}
     return result if result else {k: list(v) for k, v in PRESUPUESTO_INICIAL.items()}
@@ -156,8 +161,9 @@ def leer_ingresos_presupuesto(client):
         return INGRESOS_PRESUPUESTO_INICIAL.copy()
     rows = ws.get_all_records()
     if not rows:
-        for cat, plan in INGRESOS_PRESUPUESTO_INICIAL.items():
-            ws.append_row([cat, plan])
+        batch = [[cat, plan] for cat, plan in INGRESOS_PRESUPUESTO_INICIAL.items()]
+        if batch:
+            ws.append_rows(batch)
         return INGRESOS_PRESUPUESTO_INICIAL.copy()
     result = {str(r["categoria"]): float(r["planeado"]) for r in rows}
     return result if result else INGRESOS_PRESUPUESTO_INICIAL.copy()
@@ -178,61 +184,58 @@ def leer_presupuestos_mensuales(client):
     return result
 
 # ─────────────────────────────────────────────
-# ESCRITURA EN SHEETS
+# ESCRITURA EN SHEETS  (todas usan append_rows por lote)
 # ─────────────────────────────────────────────
+def _escribir_hoja(ws, headers, filas):
+    """Limpia y reescribe la hoja en 2 llamadas a la API."""
+    ws.clear()
+    todas = [headers] + filas
+    if todas:
+        ws.append_rows(todas)
+
 def guardar_transacciones(client, trans):
     ws = get_or_create_sheet(client, "Transacciones", ["fecha","monto","descripcion","medio","categoria"])
     if ws:
-        ws.clear()
-        ws.append_row(["fecha","monto","descripcion","medio","categoria"])
-        for t in trans:
-            ws.append_row([t["fecha"], t["monto"], t["descripcion"], t["medio"], t["categoria"]])
+        filas = [[t["fecha"], t["monto"], t["descripcion"], t["medio"], t["categoria"]]
+                 for t in trans]
+        _escribir_hoja(ws, ["fecha","monto","descripcion","medio","categoria"], filas)
 
 def guardar_ingresos(client, ingresos):
     ws = get_or_create_sheet(client, "Ingresos", ["fecha","monto","descripcion","categoria"])
     if ws:
-        ws.clear()
-        ws.append_row(["fecha","monto","descripcion","categoria"])
-        for t in ingresos:
-            ws.append_row([t["fecha"], t["monto"], t["descripcion"], t["categoria"]])
+        filas = [[t["fecha"], t["monto"], t["descripcion"], t["categoria"]] for t in ingresos]
+        _escribir_hoja(ws, ["fecha","monto","descripcion","categoria"], filas)
 
 def guardar_presupuesto(client, presupuesto):
     ws = get_or_create_sheet(client, "Presupuesto", ["categoria","tipo","planeado"])
     if ws:
-        ws.clear()
-        ws.append_row(["categoria","tipo","planeado"])
-        for cat, vals in presupuesto.items():
-            ws.append_row([cat, vals[0], vals[1]])
+        filas = [[cat, vals[0], vals[1]] for cat, vals in presupuesto.items()]
+        _escribir_hoja(ws, ["categoria","tipo","planeado"], filas)
 
 def guardar_ingresos_presupuesto(client, ing_pres):
     ws = get_or_create_sheet(client, "Ingresos_Presupuesto", ["categoria","planeado"])
     if ws:
-        ws.clear()
-        ws.append_row(["categoria","planeado"])
-        for cat, plan in ing_pres.items():
-            ws.append_row([cat, plan])
+        filas = [[cat, plan] for cat, plan in ing_pres.items()]
+        _escribir_hoja(ws, ["categoria","planeado"], filas)
 
 def guardar_presupuesto_mes(client, mes, presupuesto):
     ws = get_or_create_sheet(client, "Presupuestos_Mensuales", ["mes","categoria","tipo","planeado"])
     if ws:
-        all_rows = ws.get_all_records()
-        ws.clear()
-        ws.append_row(["mes","categoria","tipo","planeado"])
-        for r in all_rows:
-            if str(r.get("mes", "")) != mes:
-                ws.append_row([r["mes"], r["categoria"], r["tipo"], r["planeado"]])
-        for cat, vals in presupuesto.items():
-            ws.append_row([mes, cat, vals[0], vals[1]])
+        otros = [[r["mes"], r["categoria"], r["tipo"], r["planeado"]]
+                 for r in ws.get_all_records()
+                 if str(r.get("mes", "")) != mes]
+        nuevos = [[mes, cat, vals[0], vals[1]] for cat, vals in presupuesto.items()]
+        _escribir_hoja(ws, ["mes","categoria","tipo","planeado"], otros + nuevos)
 
 def agregar_transaccion(client, t):
     ws = get_or_create_sheet(client, "Transacciones", ["fecha","monto","descripcion","medio","categoria"])
     if ws:
-        ws.append_row([t["fecha"], t["monto"], t["descripcion"], t["medio"], t["categoria"]])
+        ws.append_rows([[t["fecha"], t["monto"], t["descripcion"], t["medio"], t["categoria"]]])
 
 def agregar_ingreso(client, t):
     ws = get_or_create_sheet(client, "Ingresos", ["fecha","monto","descripcion","categoria"])
     if ws:
-        ws.append_row([t["fecha"], t["monto"], t["descripcion"], t["categoria"]])
+        ws.append_rows([[t["fecha"], t["monto"], t["descripcion"], t["categoria"]]])
 
 # ─────────────────────────────────────────────
 # CARGA INICIAL
